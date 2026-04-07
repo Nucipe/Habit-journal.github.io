@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Journal Habits Pro - Multiview</title>
+    <style>
+        :root {
+            --bg: #faf9f6; --card: #ffffff; --text: #3d3d3d; --border: #edece6;
+            --success: #a8dadc; --pending: #fde68a; --fail: #ffb3b3; --empty: #f3f2ee;
+        }
+
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg); color: var(--text); margin: 0; padding: 20px; display: flex; justify-content: center; }
+        .container { max-width: 1100px; width: 100%; }
+
+        header { text-align: center; margin-bottom: 20px; }
+        h1 { font-weight: 300; letter-spacing: 3px; text-transform: uppercase; font-size: 1.2rem; margin-bottom: 10px; }
+
+        /* Navegación de Vistas */
+        .nav-main { display: flex; justify-content: center; gap: 10px; margin-bottom: 25px; }
+        .nav-main button { background: var(--card); border: 1px solid var(--border); padding: 8px 18px; border-radius: 15px; cursor: pointer; transition: 0.3s; font-size: 0.8rem; }
+        .nav-main button.active { background: var(--text); color: white; border-color: var(--text); }
+
+        /* Filtros Temporales */
+        .filters { display: flex; justify-content: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .filters button { background: none; border: 1px solid var(--border); padding: 5px 12px; border-radius: 20px; cursor: pointer; font-size: 0.75rem; color: #888; }
+        .filters button.active { border-color: var(--text); color: var(--text); font-weight: bold; }
+
+        .card { background: var(--card); border-radius: 25px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.02); border: 1px solid var(--border); margin-bottom: 20px; }
+
+        /* TABLA CUADRÍCULA */
+        .grid-wrapper { overflow-x: auto; max-height: 600px; overflow-y: auto; }
+        .grid-table { width: 100%; border-collapse: collapse; min-width: 700px; }
+        .grid-table th { position: sticky; top: 0; background: var(--card); padding: 12px; font-size: 0.75rem; color: #999; text-transform: uppercase; border-bottom: 2px solid var(--bg); z-index: 10; }
+        .grid-table td { text-align: center; padding: 6px; border-bottom: 1px solid var(--bg); }
+        .day-label { font-weight: bold; color: #888; width: 80px; font-size: 0.8rem; text-align: left !important; }
+
+        .cell-btn { width: 28px; height: 28px; border-radius: 8px; border: none; cursor: pointer; background-color: var(--empty); transition: 0.2s; }
+        .cell-btn.success { background-color: var(--success); }
+        .cell-btn.pending { background-color: var(--pending); }
+        .cell-btn.fail { background-color: var(--fail); }
+
+        /* ESTADÍSTICAS CIRCULARES */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 20px; }
+        .stat-item { background: white; padding: 25px 15px; border-radius: 20px; text-align: center; border: 1px solid var(--border); }
+        .progress-circle { position: relative; width: 100px; height: 100px; margin: 0 auto 10px; }
+        .progress-circle svg { transform: rotate(-90deg); width: 100px; height: 100px; }
+        .circle-bg { fill: none; stroke: var(--empty); stroke-width: 8; }
+        .circle-progress { fill: none; stroke-width: 8; stroke-linecap: round; stroke-dasharray: 282.7; stroke-dashoffset: 282.7; transition: stroke-dashoffset 0.8s; }
+        .pct-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1.1rem; font-weight: bold; }
+
+        /* CONFIG */
+        .input-group { display: flex; gap: 8px; margin-bottom: 20px; }
+        input { flex: 1; padding: 12px; border-radius: 12px; border: 1px solid var(--border); outline: none; }
+        .add-btn { background: var(--text); color: white; border: none; padding: 0 20px; border-radius: 12px; cursor: pointer; }
+        .habit-pill { display: flex; justify-content: space-between; padding: 12px; background: #f9f9f7; border-radius: 12px; margin-bottom: 8px; font-size: 0.9rem; }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>Habit Journal</h1>
+        <div id="dateDisplay" style="font-size: 0.9rem; font-weight: bold; margin-bottom: 10px;"></div>
+    </header>
+
+    <nav class="nav-main">
+        <button id="btn-grid" class="active" onclick="showView('grid')">Calendario</button>
+        <button id="btn-stats" onclick="showView('stats')">Progreso</button>
+        <button id="btn-config" onclick="showView('config')">Objetivos</button>
+    </nav>
+
+    <div class="filters">
+        <button onclick="setFilter('day')" id="f-day">Día</button>
+        <button onclick="setFilter('week')" id="f-week">Semana</button>
+        <button onclick="setFilter('month')" id="f-month" class="active">Mes</button>
+        <button onclick="setFilter('year')" id="f-year">Año</button>
+        <button onclick="setFilter('all')" id="f-all">Siempre</button>
+    </div>
+
+    <div id="view-grid" class="view">
+        <div class="card">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
+                <button onclick="changeDate(-1)" style="border:none; background:none; cursor:pointer;">← Anterior</button>
+                <span id="viewLabel" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px;"></span>
+                <button onclick="changeDate(1)" style="border:none; background:none; cursor:pointer;">Siguiente →</button>
+            </div>
+            <div class="grid-wrapper">
+                <table class="grid-table" id="mainGrid"></table>
+            </div>
+        </div>
+    </div>
+
+    <div id="view-stats" class="view hidden">
+        <div class="stats-grid" id="statsDisplay"></div>
+    </div>
+
+    <div id="view-config" class="view hidden">
+        <div class="card" style="max-width: 500px; margin: 0 auto;">
+            <div class="input-group">
+                <input type="text" id="habitInput" placeholder="Nuevo objetivo...">
+                <button class="add-btn" onclick="addHabit()">Crear</button>
+            </div>
+            <div id="habitsList"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let habits = JSON.parse(localStorage.getItem('journalDB_v2')) || [];
+    let currentBaseDate = new Date(); // Fecha para navegar
+    let currentFilter = 'month'; // Filtro por defecto
+    const today = new Date();
+
+    function save() { localStorage.setItem('journalDB_v2', JSON.stringify(habits)); }
+
+    function addHabit() {
+        const input = document.getElementById('habitInput');
+        if (!input.value.trim()) return;
+        habits.push({ id: Date.now(), name: input.value, logs: {} });
+        input.value = ""; save(); renderAll();
+    }
+
+    function deleteHabit(id) {
+        habits = habits.filter(h => h.id !== id);
+        save(); renderAll();
+    }
+
+    function toggleStatus(habitId, dateStr) {
+        const h = habits.find(h => h.id === habitId);
+        const states = [undefined, 'success', 'pending', 'fail'];
+        let idx = states.indexOf(h.logs[dateStr]);
+        h.logs[dateStr] = states[(idx + 1) % 4];
+        save(); renderGrid();
+    }
+
+    function setFilter(f) {
+        currentFilter = f;
+        document.querySelectorAll('.filters button').forEach(b => b.classList.remove('active'));
+        document.getElementById('f-' + f).classList.add('active');
+        renderAll();
+    }
+
+    function changeDate(dir) {
+        if (currentFilter === 'month') currentBaseDate.setMonth(currentBaseDate.getMonth() + dir);
+        else if (currentFilter === 'year') currentBaseDate.setFullYear(currentBaseDate.getFullYear() + dir);
+        else if (currentFilter === 'day') currentBaseDate.setDate(currentBaseDate.getDate() + dir);
+        else if (currentFilter === 'week') currentBaseDate.setDate(currentBaseDate.getDate() + (dir * 7));
+        renderAll();
+    }
+
+    function showView(id) {
+        document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+        document.querySelectorAll('.nav-main button').forEach(b => b.classList.remove('active'));
+        document.getElementById('view-' + id).classList.remove('hidden');
+        document.getElementById('btn-' + id).classList.add('active');
+        renderAll();
+    }
+
+    function getDatesForFilter() {
+        let dates = [];
+        let start = new Date(currentBaseDate);
+        let count = 1;
+
+        if (currentFilter === 'day') {
+            dates.push(new Date(start));
+        } else if (currentFilter === 'month') {
+            start.setDate(1);
+            count = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+            for(let i=0; i<count; i++) {
+                let d = new Date(start); d.setDate(i+1); dates.push(d);
+            }
+        } else if (currentFilter === 'week') {
+            let day = start.getDay() || 7;
+            start.setDate(start.getDate() - day + 1);
+            for(let i=0; i<7; i++) {
+                let d = new Date(start); d.setDate(start.getDate() + i); dates.push(d);
+            }
+        } else if (currentFilter === 'year') {
+            // Para año en tabla, mostramos los días del mes actual del año elegido para no saturar
+            start.setDate(1);
+            count = new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate();
+            for(let i=0; i<count; i++) {
+                let d = new Date(start); d.setDate(i+1); dates.push(d);
+            }
+        } else if (currentFilter === 'all') {
+            // Histórico: últimos 30 días con registros
+            for(let i=0; i<30; i++) {
+                let d = new Date(); d.setDate(d.getDate() - i); dates.push(d);
+            }
+        }
+        return dates;
+    }
+
+    function renderGrid() {
+        const table = document.getElementById('mainGrid');
+        const label = document.getElementById('viewLabel');
+        table.innerHTML = "";
+        
+        const dateList = getDatesForFilter();
+        label.innerText = currentBaseDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
+
+        if (!habits.length) return;
+
+        let head = `<tr><th class="day-label">Fecha</th>`;
+        habits.forEach(h => head += `<th>${h.name}</th>`);
+        table.innerHTML = head + `</tr>`;
+
+        dateList.forEach(d => {
+            const dStr = d.toISOString().split('T')[0];
+            const displayDate = d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
+            let row = `<tr><td class="day-label">${displayDate}</td>`;
+            habits.forEach(h => {
+                const status = h.logs[dStr] || "";
+                row += `<td><button class="cell-btn ${status}" onclick="toggleStatus(${h.id}, '${dStr}')"></button></td>`;
+            });
+            table.innerHTML += row + `</tr>`;
+        });
+    }
+
+    function renderStats() {
+        const container = document.getElementById('statsDisplay');
+        container.innerHTML = "";
+        const dateList = getDatesForFilter().map(d => d.toISOString().split('T')[0]);
+
+        habits.forEach((h, index) => {
+            let success = 0, total = 0;
+            
+            // Si el filtro es ALL, contamos todo el historial
+            if (currentFilter === 'all') {
+                Object.values(h.logs).forEach(v => { if(v) total++; if(v==='success') success++; });
+            } else {
+                dateList.forEach(dStr => {
+                    const v = h.logs[dStr];
+                    if(v) total++;
+                    if(v === 'success') success++;
+                });
+            }
+
+            const pct = total === 0 ? 0 : Math.round((success / total) * 100);
+            const offset = 282.7 - (282.7 * pct / 100);
+            const color = `hsl(${index * 137.5}, 60%, 70%)`;
+
+            container.innerHTML += `
+                <div class="stat-item">
+                    <div class="progress-circle">
+                        <svg><circle class="circle-bg" cx="50" cy="50" r="45"></circle>
+                        <circle class="circle-progress" cx="50" cy="50" r="45" style="stroke:${color}; stroke-dashoffset:${offset}"></circle></svg>
+                        <div class="pct-text">${pct}%</div>
+                    </div>
+                    <div style="font-size:0.85rem; font-weight:bold;">${h.name}</div>
+                    <div style="font-size:0.7rem; color:#aaa; margin-top:5px;">${success} éxitos de ${total}</div>
+                </div>`;
+        });
+    }
+
+    function renderConfig() {
+        const list = document.getElementById('habitsList');
+        list.innerHTML = "";
+        habits.forEach(h => {
+            list.innerHTML += `<div class="habit-pill"><span>${h.name}</span><button style="border:none; color:red; cursor:pointer;" onclick="deleteHabit(${h.id})">✕</button></div>`;
+        });
+    }
+
+    function renderAll() {
+        renderGrid();
+        renderStats();
+        renderConfig();
+        document.getElementById('dateDisplay').innerText = today.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
+    }
+
+    renderAll();
+</script>
+</body>
+</html>
