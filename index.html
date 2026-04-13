@@ -48,7 +48,7 @@
 
         .input-group { display: flex; gap: 8px; margin-bottom: 20px; }
         input, textarea { width: 100%; padding: 12px; border-radius: 12px; border: 1px solid var(--border); outline: none; font-family: inherit; }
-        textarea { resize: none; background: #fdfdfb; font-size: 0.8rem; }
+        textarea { resize: none; background: #fdfdfb; font-size: 0.7rem; color: #666; }
         .add-btn { background: var(--text); color: white; border: none; padding: 10px 20px; border-radius: 12px; cursor: pointer; font-size: 0.9rem; }
         .habit-pill { display: flex; justify-content: space-between; padding: 12px; background: #f9f9f7; border-radius: 12px; margin-bottom: 8px; font-size: 0.9rem; }
 
@@ -59,7 +59,7 @@
         .hidden { display: none; }
     </style>
 </head>
-<body> 
+<body>
 
 <div id="toast">Copiado ✨</div>
 
@@ -113,12 +113,16 @@
 
     <div id="view-sync" class="view hidden">
         <div class="card" style="max-width: 500px; margin: 0 auto; text-align: center;">
-            <h2 style="font-size: 1rem; font-weight: 400;">Sincronizar Dispositivos</h2>
-            <textarea id="exportCode" rows="4" readonly onclick="this.select()"></textarea>
-            <button class="add-btn" style="width: 100%; margin-top: 10px; background: var(--accent);" onclick="copySyncCode()">Copiar Código</button>
-            <hr style="border: 0; border-top: 1px solid var(--border); margin: 25px 0;">
-            <textarea id="importCode" rows="4" placeholder="Pega el código aquí..."></textarea>
-            <button class="add-btn" style="width: 100%; margin-top: 10px; background: var(--accent);" onclick="importSyncCode()">Sincronizar Datos</button>
+            <h2 style="font-size: 1rem; font-weight: 400; color: var(--accent);">Sincronización</h2>
+            <p style="font-size: 0.75rem; color: #888; margin-bottom: 15px;">Copia tu código para exportar o pega uno para importar.</p>
+            
+            <textarea id="exportCode" rows="5" readonly onclick="this.select()"></textarea>
+            <button class="add-btn" style="width: 100%; margin: 10px 0 20px 0; background: var(--accent);" onclick="copySyncCode()">Copiar Mi Código</button>
+            
+            <hr style="border: 0; border-top: 1px solid var(--border); margin: 10px 0 20px 0;">
+            
+            <textarea id="importCode" rows="5" placeholder="Pega aquí el código del otro dispositivo..."></textarea>
+            <button class="add-btn" style="width: 100%; margin-top: 10px;" onclick="importSyncCode()">Importar Datos</button>
         </div>
     </div>
 </div>
@@ -126,14 +130,63 @@
 <script>
     let habits = JSON.parse(localStorage.getItem('journalDB_v2')) || [];
     let currentBaseDate = new Date();
-    let currentFilter = 'all'; // CAMBIADO: Ahora inicia en "Siempre"
+    let currentFilter = 'all'; 
     const today = new Date();
 
     function save() { 
         localStorage.setItem('journalDB_v2', JSON.stringify(habits)); 
-        updateSyncTextArea();
     }
 
+    // --- FUNCIONES DE SINCRONIZACIÓN CORREGIDAS ---
+    function updateSyncTextArea() {
+        const code = btoa(unescape(encodeURIComponent(JSON.stringify(habits))));
+        const area = document.getElementById('exportCode');
+        if(area) area.value = code;
+    }
+
+    function copySyncCode() {
+        updateSyncTextArea();
+        const area = document.getElementById('exportCode');
+        area.select();
+        document.execCommand('copy');
+        showToast("Código copiado ✨");
+    }
+
+    function importSyncCode() {
+        const code = document.getElementById('importCode').value.trim();
+        if(!code) return;
+        try {
+            const data = JSON.parse(decodeURIComponent(escape(atob(code))));
+            if(confirm("Se borrarán tus datos actuales de este móvil para poner los nuevos. ¿Sincronizar?")) {
+                habits = data;
+                save();
+                renderAll();
+                document.getElementById('importCode').value = "";
+                showToast("Sincronización completa ☁️");
+            }
+        } catch(e) {
+            alert("Error: El código no es válido o está incompleto.");
+        }
+    }
+
+    function showToast(txt) {
+        const t = document.getElementById('toast');
+        t.innerText = txt;
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    function showView(id) {
+        document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+        document.querySelectorAll('.nav-main button').forEach(b => b.classList.remove('active'));
+        document.getElementById('view-' + id).classList.remove('hidden');
+        document.getElementById('btn-' + id).classList.add('active');
+        
+        if(id === 'sync') updateSyncTextArea();
+        renderAll();
+    }
+
+    // --- LÓGICA DE HÁBITOS ---
     function addHabit() {
         const input = document.getElementById('habitInput');
         if (!input.value.trim()) return;
@@ -142,7 +195,7 @@
     }
 
     function deleteHabit(id) {
-        if(!confirm("¿Eliminar?")) return;
+        if(!confirm("¿Borrar objetivo?")) return;
         habits = habits.filter(h => h.id !== id);
         save(); renderAll();
     }
@@ -153,46 +206,6 @@
         let idx = states.indexOf(h.logs[dateStr]);
         h.logs[dateStr] = states[(idx + 1) % 4];
         save(); renderGrid();
-    }
-
-    function updateSyncTextArea() {
-        const code = btoa(JSON.stringify(habits));
-        const area = document.getElementById('exportCode');
-        if(area) area.value = code;
-    }
-
-    function copySyncCode() {
-        const area = document.getElementById('exportCode');
-        area.select(); document.execCommand('copy');
-        showToast("Código copiado ✨");
-    }
-
-    function importSyncCode() {
-        const code = document.getElementById('importCode').value.trim();
-        if(!code) return;
-        try {
-            const data = JSON.parse(atob(code));
-            if(confirm("Se sobrescribirán tus datos. ¿Continuar?")) {
-                habits = data; save(); renderAll();
-                document.getElementById('importCode').value = "";
-                showToast("Sincronizado ☁️");
-            }
-        } catch(e) { alert("Código no válido"); }
-    }
-
-    function showToast(txt) {
-        const t = document.getElementById('toast');
-        t.innerText = txt; t.classList.add('show');
-        setTimeout(() => t.classList.remove('show'), 3000);
-    }
-
-    function showView(id) {
-        document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
-        document.querySelectorAll('.nav-main button').forEach(b => b.classList.remove('active'));
-        document.getElementById('view-' + id).classList.remove('hidden');
-        document.getElementById('btn-' + id).classList.add('active');
-        if(id === 'sync') updateSyncTextArea();
-        renderAll();
     }
 
     function setFilter(f) {
@@ -224,7 +237,7 @@
             start.setDate(start.getDate() - day + 1);
             for(let i=0; i<7; i++) { let d = new Date(start); d.setDate(start.getDate() + i); dates.push(d); }
         } else {
-            // Año o Siempre: Mostramos los últimos 30 días para que la tabla sea manejable
+            // "Siempre" o "Año": últimos 30 días
             for(let i=0; i<30; i++) { let d = new Date(); d.setDate(d.getDate() - i); dates.push(d); }
         }
         return dates;
@@ -236,10 +249,16 @@
         table.innerHTML = "";
         const dateList = getDatesForFilter();
         label.innerText = currentFilter === 'all' ? "ÚLTIMOS 30 DÍAS" : currentBaseDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' });
-        if (!habits.length) return;
+        
+        if (!habits.length) {
+            table.innerHTML = "<tr><td style='padding:20px; color:#999'>No hay objetivos. Ve a la pestaña de Objetivos.</td></tr>";
+            return;
+        }
+
         let head = `<tr><th class="day-label">Fecha</th>`;
         habits.forEach(h => head += `<th>${h.name}</th>`);
         table.innerHTML = head + `</tr>`;
+
         dateList.forEach(d => {
             const dStr = d.toISOString().split('T')[0];
             const displayDate = d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' });
@@ -256,6 +275,7 @@
         const container = document.getElementById('statsDisplay');
         container.innerHTML = "";
         const dateList = getDatesForFilter().map(d => d.toISOString().split('T')[0]);
+        
         habits.forEach((h, index) => {
             let success = 0, total = 0;
             if (currentFilter === 'all') {
@@ -268,7 +288,16 @@
             const pct = total === 0 ? 0 : Math.round((success / total) * 100);
             const offset = 282.7 - (282.7 * pct / 100);
             const color = `hsl(${index * 137.5}, 60%, 70%)`;
-            container.innerHTML += `<div class="stat-item"><div class="progress-circle"><svg><circle class="circle-bg" cx="50" cy="50" r="45"></circle><circle class="circle-progress" cx="50" cy="50" r="45" style="stroke:${color}; stroke-dashoffset:${offset}"></circle></svg><div class="pct-text">${pct}%</div></div><div style="font-size:0.85rem; font-weight:bold;">${h.name}</div></div>`;
+            
+            container.innerHTML += `
+                <div class="stat-item">
+                    <div class="progress-circle">
+                        <svg><circle class="circle-bg" cx="50" cy="50" r="45"></circle>
+                        <circle class="circle-progress" cx="50" cy="50" r="45" style="stroke:${color}; stroke-dashoffset:${offset}"></circle></svg>
+                        <div class="pct-text">${pct}%</div>
+                    </div>
+                    <div style="font-size:0.85rem; font-weight:bold;">${h.name}</div>
+                </div>`;
         });
     }
 
@@ -281,10 +310,13 @@
     }
 
     function renderAll() {
-        renderGrid(); renderStats(); renderConfig();
+        renderGrid();
+        renderStats();
+        renderConfig();
         document.getElementById('dateDisplay').innerText = today.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' }).toUpperCase();
     }
 
+    // Inicialización
     renderAll();
 </script>
 </body>
